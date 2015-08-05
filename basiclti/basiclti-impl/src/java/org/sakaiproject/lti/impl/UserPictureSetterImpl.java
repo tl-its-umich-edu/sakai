@@ -53,13 +53,10 @@ public class UserPictureSetterImpl implements UserPictureSetter {
      * @param user The provisioned user who MUST be already logged in.
      * @param isTrustedConsumer If this is true, do nothing as we assume that a local
      * 							user corresponding to the consumer user already exists
-     * @param isEmailTrustedConsumer If this is true, do nothing as we assume that a local
-     * 							user corresponding to the consumer user already exists
      */
-    public void setupUserPicture(Map payload, User user, boolean isTrustedConsumer, boolean isEmailTrustedConsumer) {
+    public void setupUserPicture(Map payload, User user, boolean isTrustedConsumer) {
     	
     	if(isTrustedConsumer) return;
-    	if(isEmailTrustedConsumer)return;
     	
     	String imageUrl = (String) payload.get(BasicLTIConstants.USER_IMAGE);
     	        

@@ -42,12 +42,10 @@ public class UserLocaleSetterImpl implements UserLocaleSetter {
     public void setPreferencesService(PreferencesService  preferencesService) {
         this.preferencesService = preferencesService;
     }
-     /* Email Trusted consumer case we are not creating the user, we look up the user based on the email address. 
-      snd user Locale must already be set and simply return*/
-    public void setupUserLocale(Map payload, User user, boolean isTrustedConsumer, boolean isEmailTrustedConsumer) {
+
+    public void setupUserLocale(Map payload, User user, boolean isTrustedConsumer) {
 
     	if(isTrustedConsumer) return;
-    	if(isEmailTrustedConsumer)return;
 
         // BLTI-153. Set up user's language.
         String locale = (String) payload.get(BasicLTIConstants.LAUNCH_PRESENTATION_LOCALE);
