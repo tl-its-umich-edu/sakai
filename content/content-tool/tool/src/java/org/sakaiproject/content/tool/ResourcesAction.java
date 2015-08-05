@@ -59,7 +59,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.sakaiproject.alias.api.AliasEdit;
-import org.sakaiproject.alias.cover.AliasService;
+import org.sakaiproject.alias.api.AliasService;
 import org.sakaiproject.antivirus.api.VirusFoundException;
 import org.sakaiproject.authz.api.PermissionsHelper;
 import org.sakaiproject.authz.cover.AuthzGroupService;
@@ -163,6 +163,7 @@ public class ResourcesAction
 	 private static ContentPrintService contentPrintService = (ContentPrintService) ComponentManager.get("org.sakaiproject.content.api.ContentPrintService");
 	 
 	 private static SchedulerManager schedulerManager = (SchedulerManager) ComponentManager.get("org.sakaiproject.api.app.scheduler.SchedulerManager");
+
 	 /** state variable name for the content print service call result */
 	 private static String CONTENT_PRINT_CALL_RESPONSE = "content_print_call_response";
 	 
@@ -902,6 +903,13 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		CREATION_ACTIONS.add(ActionType.CREATE_BY_HELPER);
 		CREATION_ACTIONS.add(ActionType.PASTE_MOVED);
 		CREATION_ACTIONS.add(ActionType.PASTE_COPIED);
+	}
+
+	private AliasService aliasService;
+
+	public ResourcesAction() {
+		super();
+		aliasService = ComponentManager.get(AliasService.class);
 	}
 
 	/**
@@ -4969,6 +4977,14 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		}
 		String url = entity.getUrl();
 		String title = params.getString("page");
+
+		// if the url is hosted by sakai then take out the hostname to make it a relative link
+		String serverName = ServerConfigurationService.getServerName();
+
+		// if the supplied url starts with protocol//serverName:port/
+		Pattern serverUrlPattern = Pattern.compile(String.format("^(https?:)?//%s:?\\d*/", serverName));
+		url = serverUrlPattern.matcher(url).replaceFirst("/");
+
 		state.setAttribute(STATE_PAGE_TITLE, title);
 		if (title == null || title.trim().length() == 0) {
 			addAlert(state, trb.getString("alert.page.empty"));
@@ -5685,7 +5701,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 		if (!inMyWorkspace && !dropboxMode && m_siteAlias)
 		{
 			// find site alias first
-			List target = AliasService.getAliases("/site/" + siteId);		
+			List target = aliasService.getAliases("/site/" + siteId);
 	
 			if (!target.isEmpty()) {
 				// take the first alias only
@@ -5699,7 +5715,7 @@ protected static final String PARAM_PAGESIZE = "collections_per_page";
 				}
 			} else {
 				// use mail archive alias
-				target = AliasService.getAliases("/mailarchive/channel/" + siteId + "/main");
+				target = aliasService.getAliases("/mailarchive/channel/" + siteId + "/main");
 	
 				if (!target.isEmpty()) {
 					// take the first alias only

@@ -67,8 +67,10 @@ echo("<pre>\n");
 
 $secret = isset($_SESSION['split_secret']) ? $_SESSION['split_secret'] : 'secret';
 $re_register = false;
+$tool_proxy_guid = false;
 if ( $lti_message_type == "ToolProxyReregistrationRequest" ) {
     $reg_key = $_POST['oauth_consumer_key'];
+    $tool_proxy_guid = isset($_POST['tool_proxy_guid']) ? $_POST['tool_proxy_guid'] : false;
     $reg_password = "secret";
     $re_register = false;
     $context = new BLTI($secret, false, false);
@@ -82,7 +84,7 @@ if ( $lti_message_type == "ToolProxyReregistrationRequest" ) {
 
         echo('<a href="basecheck.php?b='.urlencode($context->basestring).'" target="_blank">Compare This Base String</a><br/>');
         print "<br/></p>\n";
-	echo ("<p>Continuing re-registration...</p>\n");
+        echo ("<p>Continuing re-registration...</p>\n");
     }
 } else if ( $lti_message_type == "ToolProxyRegistrationRequest" ) {
     $reg_key = $_POST['reg_key'];
@@ -181,26 +183,19 @@ $tp_profile->tool_profile->product_instance->service_provider->guid = "http://ww
 $tp_profile->tool_profile->resource_handler[0]->message[0]->path = "tool.php";
 $tp_profile->tool_profile->resource_handler[0]->resource_type->code = "sakai-api-test-01";
 
-// Only ask for parameters we are allowed to ask for 
+// Ask for all the parameter mappings we are interested in
 // Canvas rejects us if  we ask for a custom parameter that they did 
 // not offer as capability
-$parameters = $tp_profile->tool_profile->resource_handler[0]->message[0]->parameter;
 $newparms = array();
-foreach($parameters as $parameter) {
-    if ( isset($parameter->variable) ) {
-        if ( ! in_array($parameter->variable, $tc_capabilities) ) continue;
-    }
-    $newparms[] = $parameter;
+foreach($desired_parameters as $parameter) {
+    if ( ! in_array($parameter, $tc_capabilities) ) continue;
+    $np = new stdClass();
+    $np->variable = $parameter;
+    $np->name = strtolower(str_replace(".","_",$parameter));
+    $newparms[] = $np;
 }
 // var_dump($newparms);
 $tp_profile->tool_profile->resource_handler[0]->message[0]->parameter = $newparms;
-
-// Ask for the kitchen sink...
-foreach($tc_capabilities as $capability) {
-    if ( "basic-lti-launch-request" == $capability ) continue;
-    if ( in_array($capability, $tp_profile->tool_profile->resource_handler[0]->message[0]->enabled_capability) ) continue;
-    $tp_profile->tool_profile->resource_handler[0]->message[0]->enabled_capability[] = $capability;
-}
 
 // Cause an error on registration
 // $tp_profile->tool_profile->resource_handler[0]->message[0]->enabled_capability[] = "Give.me.the.database.password";
@@ -229,6 +224,26 @@ if ( $oauth_splitsecret ) {
     $tp_profile->security_contract->shared_secret = $secret;
 }
 
+// Ask for the kitchen sink...
+$hmac256 = false;
+foreach($tc_capabilities as $capability) {
+    if ( "basic-lti-launch-request" == $capability ) continue;
+
+    if ( $oauth_splitsecret === false && "OAuth.splitSecret" == $capability ) continue;
+
+    if ( "OAuth.hmac-256" == $capability ) {
+        $hmac256 = true;
+    }
+
+    // promote these up to the top level capabilities
+    if ( "OAuth.splitSecret" == $capability || "OAuth.hmac-sha256" == $capability ) {
+        $tp_profile->enabled_capability[] = $capability;
+    }
+
+    if ( in_array($capability, $tp_profile->tool_profile->resource_handler[0]->message[0]->enabled_capability) ) continue;
+    $tp_profile->tool_profile->resource_handler[0]->message[0]->enabled_capability[] = $capability;
+}
+
 
 $tp_services = array();
 foreach($tc_services as $tc_service) {
@@ -255,11 +270,6 @@ echo("</pre>\n");
 
 if ( strlen($register_url) < 1 || strlen($reg_key) < 1 || strlen($reg_password) < 1 ) die("Cannot call register_url - insufficient data...\n");
 
-unset($_SESSION['reg_key']);
-unset($_SESSION['reg_password']);
-$_SESSION['reg_key'] = $reg_key;
-$_SESSION['reg_password'] = $reg_password;
-
 togglePre("Registration Request",htmlent_utf8($body));
 
 $more_headers = array();
@@ -280,8 +290,20 @@ togglePre("Registration Response",htmlent_utf8(json_indent($response)));
 
 $tc_half_shared_secret = false;
 if ( $last_http_response == 201 || $last_http_response == 200 ) {
+
+    $responseObject = json_decode($response);
+
+    $tc_tool_proxy_guid = $responseObject->tool_proxy_guid;
+    if ( $tc_tool_proxy_guid ) {
+        echo('<p>Tool consumer returned tool_proxy_guid='.$tc_tool_proxy_guid."</p>\n");
+        if ( $tool_proxy_guid && $tool_proxy_guid != $tc_tool_proxy_guid ) {
+            echo('<p style="color: red;">Error: Returned tool_proxy_guid did not match launch tool_proxy_guid='.$tool_proxy_guid."</p>\n");
+        }
+    } else {
+        echo('<p style="color: red;">Error: Tool Consumer did not include tool_proxy_guid in its response.</p>'."\n");
+    }
+
     if ( $oauth_splitsecret && $tp_half_shared_secret ) {
-        $responseObject = json_decode($response);
         if ( isset($responseObject->tc_half_shared_secret) ) {
             $tc_half_shared_secret = $responseObject->tc_half_shared_secret;
             echo("<p>tc_half_shared_secret: ".$tc_half_shared_secret."</p>\n");

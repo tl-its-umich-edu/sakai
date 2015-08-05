@@ -92,6 +92,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.*;
+import java.text.Collator;
+import java.text.ParseException;
+import java.text.RuleBasedCollator;
 import java.text.Normalizer;
 import java.text.NumberFormat;
 import java.util.*;
@@ -101,6 +104,7 @@ import java.util.zip.ZipOutputStream;
 
 //Export to excel
 import java.text.DecimalFormat;
+import org.sakaiproject.entitybroker.DeveloperHelperService;
 
 /**
  * <p>
@@ -165,6 +169,11 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 	private SecurityService securityService = null;
 	public void setSecurityService(SecurityService securityService){
 		this.securityService = securityService;
+	}
+
+	private DeveloperHelperService developerHelperService = null;
+	public void setDeveloperHelperService( DeveloperHelperService developerHelperService ) {
+		this.developerHelperService = developerHelperService;
 	}
 
 	String newline = "<br />\n";
@@ -1700,12 +1709,12 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		    }
 		    catch (PermissionException e)
 		    {
-		        M_log.warn("getCalendar: The current user does not have permission to access " +
+		        M_log.error("getCalendar: The current user does not have permission to access " +
 		                "the calendar for context: " + contextId, e);
 		    }
 		    catch (Exception ex)
 		    {
-		        M_log.warn("getCalendar: Unknown exception occurred retrieving calendar for site: " + contextId, ex);
+		        M_log.error("getCalendar: Unknown exception occurred retrieving calendar for site: " + contextId, ex);
 		        calendar = null;
 		    }
 		}
@@ -2514,11 +2523,11 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		}
 		catch (IdUnusedException e)
 		{
-			M_log.warn(" commitEdit(), submissionId=" + submissionRef, e);
+			M_log.error(" commitEdit(), submissionId=" + submissionRef, e);
 		}
 		catch (PermissionException e)
 		{
-			M_log.warn(" commitEdit(), submissionId=" + submissionRef, e);
+			M_log.error(" commitEdit(), submissionId=" + submissionRef, e);
 		}
 
 	} // commitEdit(Submission)
@@ -2955,7 +2964,8 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		buffer.append(rb.getString("noti.site.title") + " " + siteTitle + newline);
 		buffer.append(rb.getString("noti.site.url") + " <a href=\""+ siteUrl+ "\">" + siteUrl + "</a>"+ newline);
 		// notification text
-		buffer.append(rb.getFormattedMessage("noti.releasegrade.text", new String[]{a.getTitle(), siteTitle}));
+		String linkToToolInSite = "<a href=\"" + developerHelperService.getToolViewURL( "sakai.assignment.grades", null, null, null ) + "\">" + siteTitle + "</a>";
+		buffer.append(rb.getFormattedMessage("noti.releasegrade.text", new String[]{a.getTitle(), linkToToolInSite}));
 		
 		return buffer.toString();
 	}
@@ -2979,9 +2989,21 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		buffer.append(rb.getString("noti.site.title") + " " + siteTitle + newline);
 		buffer.append(rb.getString("noti.site.url") + " <a href=\""+ siteUrl+ "\">" + siteUrl + "</a>"+ newline);
 		// notification text
-		buffer.append(rb.getFormattedMessage("noti.releaseresubmission.text", new String[]{a.getTitle(), siteTitle}));
+		//Get the actual person that submitted, for a group submission just get the first person from that group (This is why the array is used)
+		String userId = null;
+		if (s.getSubmitterIds() != null && s.getSubmitterIds().size() > 0) {
+		    userId = (String) s.getSubmitterIds().get(0);
+		}
+
+		String linkToToolInSite = "<a href=\"" + developerHelperService.getToolViewURL( "sakai.assignment.grades", null, null, null ) + "\">" + siteTitle + "</a>";
+		if (canSubmit(context,a,userId)) {
+		    buffer.append(rb.getFormattedMessage("noti.releaseresubmission.text", new String[]{a.getTitle(), linkToToolInSite}));
+		}
+		else {
+		    buffer.append(rb.getFormattedMessage("noti.releaseresubmission.noresubmit.text", new String[]{a.getTitle(), linkToToolInSite}));
+		}
 	 		
-	 		return buffer.toString();
+	 	return buffer.toString();
 	}
 	/**
 	 * Cancel the changes made to a AssignmentSubmissionEdit object, and release the lock.
@@ -7040,7 +7062,14 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 	/**
 	 * {@inheritDoc}
 	 */
-	public boolean canSubmit(String context, Assignment a)
+	public boolean canSubmit(String context, Assignment a) {
+	    return canSubmit (context,a,null);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public boolean canSubmit(String context, Assignment a, String userId)
 	{
 		// submissions are never allowed to non-electronic assignments
 		if (a.getContent().getTypeOfSubmission() == Assignment.NON_ELECTRONIC_ASSIGNMENT_SUBMISSION)
@@ -7051,7 +7080,10 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		// return false if not allowed to submit at all
 		if (!allowAddSubmissionCheckGroups(context, a) && !allowAddAssignment(context) /*SAK-25555 return true if user is allowed to add assignment*/) return false;
 		
-		String userId = SessionManager.getCurrentSessionUserId();
+		//If userId is not defined look it up
+		if (userId == null) {
+		    userId = SessionManager.getCurrentSessionUserId();
+		}
 
 		// if user can submit to this assignment
 		List visibleAssignments = assignments(context, userId);
@@ -11702,33 +11734,45 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 				{
 					int factor = getAssignment().getContent().getFactor();
 					int dec = (int)Math.log10(factor);
-					String decimal_gradePoint = "";
+					String decSeparator = FormattedText.getDecimalSeparator();
+					String decimalGradePoint = "";
 					try
 					{
 						Integer.parseInt(grade);
 						// if point grade, display the grade with factor decimal place
-						decimal_gradePoint =  grade.substring(0, grade.length() - dec) + "." + grade.substring(grade.length() - dec);
+						int length = grade.length();
+						if (length > dec) {
+							decimalGradePoint = grade.substring(0, grade.length() - dec) + decSeparator + grade.substring(grade.length() - dec);
+						}
+						else {
+							String newGrade = "0".concat(decSeparator);
+							for (int i = length; i < dec; i++) {
+								newGrade = newGrade.concat("0");
+							}
+							decimalGradePoint = newGrade.concat(grade);
+						}
 					}
 					catch (NumberFormatException e) {
 						try {
 							Float.parseFloat(grade);
-							decimal_gradePoint = grade;
+							decimalGradePoint = grade;
 						}
 						catch (Exception e1) {
 							return grade;
 						}
 					}
 					// get localized number format
-					NumberFormat nbFormat = FormattedText.getNumberFormat(dec,dec,false);				
+					NumberFormat nbFormat = FormattedText.getNumberFormat(dec,dec,false);
+					DecimalFormat dcformat = (DecimalFormat) nbFormat;
 					// show grade in localized number format
 					try {
-						Double dblGrade = new Double(decimal_gradePoint);
-						decimal_gradePoint = nbFormat.format(dblGrade);
+						Double dblGrade = dcformat.parse(decimalGradePoint).doubleValue();
+						decimalGradePoint = nbFormat.format(dblGrade);
 					}
 					catch (Exception e) {
 						return grade;
 					}
-					return decimal_gradePoint;
+					return decimalGradePoint;
 				}
 				else
 				{
@@ -13714,8 +13758,10 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 	/**
 	 * the AssignmentComparator clas
 	 */
-	static private class AssignmentComparator implements Comparator
+	static class AssignmentComparator implements Comparator
 	{	
+		Collator collator = null;
+		
 		/**
 		 * the criteria
 		 */
@@ -13740,14 +13786,24 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 		 */
 		public AssignmentComparator(String criteria, String asc)
 		{
-			m_criteria = criteria;
-			m_asc = asc;
+			this(criteria, asc, false);
 		} // constructor
 		public AssignmentComparator(String criteria, String asc, boolean group)
 		{
 			m_criteria = criteria;
 			m_asc = asc;
 			m_group_submission = group;
+			try
+			{
+				collator= new RuleBasedCollator(((RuleBasedCollator)Collator.getInstance()).getRules().replaceAll("<'\u005f'", "<' '<'\u005f'"));
+			}
+			catch (ParseException e)
+			{
+				// error with init RuleBasedCollator with rules
+				// use the default Collator
+				collator = Collator.getInstance();
+				M_log.warn(this + " AssignmentComparator cannot init RuleBasedCollator. Will use the default Collator instead. " + e);
+			}
 		}
 
 		/**
@@ -13768,7 +13824,7 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 			{
 				String name1 = getSubmitterSortname(o1);
 				String name2 = getSubmitterSortname(o2);
-				result = name1.compareTo(name2);
+				result = compareString(name1,name2);
 			}
 			/** *********** for sorting assignments ****************** */
 			else if ("duedate".equals(m_criteria))
@@ -13827,18 +13883,7 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 					}
 				}
 
-				if (s1 == null)
-				{
-					result = -1;
-				}
-				else if (s2 == null)
-				{
-					result = 1;
-				}
-				else
-				{
-					result = s1.compareTo(s2);
-				}
+				result = compareString(s1,s2);
 			}
 			
 			// sort ascending or descending
@@ -13880,6 +13925,21 @@ public abstract class BaseAssignmentService implements AssignmentService, Entity
 			}
 			}
 			return rv;
+		}
+		
+		private int compareString(String s1, String s2) 
+		{
+			int result;
+			if (s1 == null && s2 == null) {
+				result = 0;
+			} else if (s2 == null) {
+				result = 1;
+			} else if (s1 == null) {
+				result = -1;
+			} else {
+				result = collator.compare(s1.toLowerCase(), s2.toLowerCase());
+			}
+			return result;
 		}
 	}
 	

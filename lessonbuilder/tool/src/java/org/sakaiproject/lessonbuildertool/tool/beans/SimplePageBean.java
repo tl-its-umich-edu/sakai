@@ -90,6 +90,11 @@ import java.util.regex.Pattern;
 import org.sakaiproject.lessonbuildertool.tool.beans.helpers.ResourceHelper;
 import au.com.bytecode.opencsv.CSVParser;
 
+import org.sakaiproject.portal.util.ToolUtils;
+import org.sakaiproject.lti.api.LTIService;
+import org.sakaiproject.basiclti.util.SakaiBLTIUtil;
+import org.imsglobal.lti2.ContentItem;
+
 /**
  * Backing bean for Simple pages
  * 
@@ -133,6 +138,7 @@ public class SimplePageBean {
 	public static final String GRADES[] = { "A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "E", "F" };
 	public static final String FILTERHTML = "lessonbuilder.filterhtml";
 	public static final String LESSONBUILDER_ITEMID = "lessonbuilder.itemid";
+	public static final String LESSONBUILDER_ADDBEFORE = "sakai.addbefore";
 	public static final String LESSONBUILDER_PATH = "lessonbuilder.path";
 	public static final String LESSONBUILDER_BACKPATH = "lessonbuilder.backpath";
 	public static final String LESSONBUILDER_ID = "sakai.lessonbuildertool";
@@ -223,7 +229,7 @@ public class SimplePageBean {
 	private boolean required;
 	private boolean subrequirement;
 	private boolean prerequisite;
-	private boolean breakabove;
+	private boolean breakbelow;
 	private boolean newWindow;
 	private String dropDown;
 	private String points;
@@ -246,7 +252,8 @@ public class SimplePageBean {
 	private Date releaseDate;
 	private boolean hasReleaseDate;
 	private boolean nodownloads;
-
+	private String addBefore;  // add new item before this item
+    
 	private String redirectSendingPage = null;
 	private String redirectViewId = null;
 	private String quiztool = null;
@@ -382,10 +389,16 @@ public class SimplePageBean {
 	public static class UrlItem {
 		public String Url;
 		public String label;
+		public String fa_icon = null;
 		public UrlItem(String Url, String label) {
 			this.Url = Url;
 			this.label = label;
-	    }
+		}
+		public UrlItem(String Url, String label, String fa_icon) {
+			this.Url = Url;
+			this.label = label;
+			this.fa_icon = fa_icon;
+		}
 	}
 
 	public static class GroupEntry {
@@ -525,6 +538,7 @@ public class SimplePageBean {
         }
 	
 	private ToolManager toolManager;
+	private LTIService ltiService;
 	private SecurityService securityService;
 	private SiteService siteService;
 	private SimplePageToolDao simplePageToolDao;
@@ -740,6 +754,11 @@ public class SimplePageBean {
 	public void setNodownloads(boolean n) {
 		this.nodownloads = n;
 	}
+
+	public void setAddBefore(String n) {
+		this.addBefore = n;
+	}
+
         public void setImporttop(boolean i) {
 	    this.importtop = i;
 	}
@@ -784,8 +803,8 @@ public class SimplePageBean {
 		this.prerequisite = prerequisite;
 	}
 	
-	public void setBreakabove(boolean breakabove) {
-		this.breakabove = breakabove;
+	public void setBreakbelow(boolean breakbelow) {
+		this.breakbelow = breakbelow;
 	}
 
 	public void setNewWindow(boolean newWindow) {
@@ -1063,10 +1082,10 @@ public class SimplePageBean {
 
 				item.setHtml(html);
 				item.setPrerequisite(this.prerequisite);
-				if (this.breakabove)
-				    item.setAttribute("groupedWithAbove", "true");
+				if (this.breakbelow)
+				    item.setAttribute("groupedWithBelow", "true");
 				else
-				    item.removeAttribute("groupedWithAbove");
+				    item.removeAttribute("groupedWithBelow");
 				setItemGroups(item, selectedGroups);
 				update(item);
 			} else {
@@ -1242,6 +1261,7 @@ public class SimplePageBean {
 		//}
 
 		Long itemId = (Long)toolSession.getAttribute(LESSONBUILDER_ITEMID);
+		addBefore = (String)toolSession.getAttribute(LESSONBUILDER_ADDBEFORE);
 
 		if (!itemOk(itemId))
 		    return "permission-failed";
@@ -1249,6 +1269,7 @@ public class SimplePageBean {
 		toolSession.removeAttribute(FilePickerHelper.FILE_PICKER_ATTACHMENTS);
 		toolSession.removeAttribute(FilePickerHelper.FILE_PICKER_CANCEL);
 		toolSession.removeAttribute(LESSONBUILDER_ITEMID);
+		toolSession.removeAttribute(LESSONBUILDER_ADDBEFORE);
 
 		String[] split = id.split("/");
 
@@ -1365,15 +1386,47 @@ public class SimplePageBean {
 	    // add at the end of the page
 	        List<SimplePageItem> items = getItemsOnPage(getCurrentPageId());
 		// ideally the following should be the same, but there can be odd cases. So be safe
-		int size = items.size();
-		if (size > 0) {
-		    int seq = items.get(size-1).getSequence();
-		    if (seq > size)
-			size = seq;
+		long before = 0;
+		if (addBefore != null && !addBefore.equals("")) {
+		    try {
+			before = Long.parseLong(addBefore);
+		    } catch (Exception e) {
+			// nothing. ignore bad arg
+		    }
 		}
-		size++;
 
-		SimplePageItem i = simplePageToolDao.makeItem(getCurrentPageId(), size, type, id, name);
+		// we have an item id. insert before it
+		int nseq = 0;  // sequence number of new item
+		boolean after = false; // we found the item to insert before
+		if (before > 0) {
+		    // have an item number specified, look for the item to insert before
+		    for (SimplePageItem item: items) {
+			if (item.getId() == before) {
+			    // found item to insert before
+			    // use its sequence and bump up it and all after
+			    nseq = item.getSequence();
+			    after = true;
+			}
+			if (after) {
+			    item.setSequence(item.getSequence() + 1);
+			    simplePageToolDao.quickUpdate(item);
+			}
+		    }			    
+		}
+
+		// if after not set, we didn't find the item; either no item specified or it
+		// isn't on the page
+		if (!after) {
+		    nseq = items.size();
+		    if (nseq > 0) {
+			int seq = items.get(nseq-1).getSequence();
+			if (seq > nseq)
+			    nseq = seq;
+		    }
+		    nseq++;
+		}
+		    
+		SimplePageItem i = simplePageToolDao.makeItem(getCurrentPageId(), nseq, type, id, name);
 
 		// defaults to a fixed width and height, appropriate for some things, but for an
 		// image, leave it blank, since browser will then use the native size
@@ -1469,6 +1522,10 @@ public class SimplePageBean {
 		return true;
 	    String ref = "/site/" + getCurrentSiteId();
 	    return securityService.unlock(SimplePage.PERMISSION_LESSONBUILDER_SEE_ALL, ref);
+	}
+
+	public void setLtiService(LTIService service) {
+		ltiService = service;
 	}
 
 	public void setToolManager(ToolManager toolManager) {
@@ -2452,7 +2509,7 @@ public class SimplePageBean {
 	    // this adds everything you can find from top level pages to entries
 	    for (SimplePageItem sitePageItem : sitePages) {
 		// System.out.println("findallpages " + sitePageItem.getName() + " " + true);
-		pagePickerProducer().findAllPages(sitePageItem, entries, pageMap, topLevelPages, sharedPages, 0, true);
+		pagePickerProducer().findAllPages(sitePageItem, entries, pageMap, topLevelPages, sharedPages, 0, true, true);
 	    }
 		    
 	    // everything we didn't find should be deleted. It's items remaining in pagemap
@@ -2608,10 +2665,10 @@ public class SimplePageBean {
 			i.setName(name);
 			i.setDescription(description);
 			i.setRequired(required);
-			if (this.breakabove)
-			    i.setAttribute("groupedWithAbove", "true");
+			if (this.breakbelow)
+			    i.setAttribute("groupedWithBelow", "true");
 			else
-			    i.removeAttribute("groupedWithAbove");
+			    i.removeAttribute("groupedWithBelow");
 
 			i.setPrerequisite(prerequisite);
 			i.setSubrequirement(subrequirement);
@@ -2876,10 +2933,10 @@ public class SimplePageBean {
 					i.setSakaiId(selectedEntity);
 					i.setName(selectedObject.getTitle());
 				    }
-				    if (this.breakabove)
-					i.setAttribute("groupedWithAbove", "true");
+				    if (this.breakbelow)
+					i.setAttribute("groupedWithBelow", "true");
 				    else
-					i.removeAttribute("groupedWithAbove");
+					i.removeAttribute("groupedWithBelow");
 
 				    // reset assignment-specific stuff
 				    i.setDescription("");
@@ -2956,10 +3013,10 @@ public class SimplePageBean {
 				    //	 i.setDescription("(" + messageLocator.getMessage("simplepage.due") + " " + df.format(selectedObject.getDueDate()) + ")");
 				    //  else
 				    // i.setDescription(null);
-				    if (this.breakabove)
-					i.setAttribute("groupedWithAbove", "true");
+				    if (this.breakbelow)
+					i.setAttribute("groupedWithBelow", "true");
 				    else
-					i.removeAttribute("groupedWithAbove");
+					i.removeAttribute("groupedWithBelow");
 				    update(i);
 				}
 			    } else {
@@ -3611,10 +3668,10 @@ public class SimplePageBean {
 				    }
 				    // reset quiz-specific stuff
 				    i.setDescription("");
-				    if (this.breakabove)
-					i.setAttribute("groupedWithAbove", "true");
+				    if (this.breakbelow)
+					i.setAttribute("groupedWithBelow", "true");
 				    else
-					i.removeAttribute("groupedWithAbove");
+					i.removeAttribute("groupedWithBelow");
 				    update(i);
 				}
 			    } else  // no, add new item
@@ -3721,10 +3778,10 @@ public class SimplePageBean {
 			i.setDescription(description);
 			i.setHtml(mimetype);
 			i.setPrerequisite(this.prerequisite);
-			if (this.breakabove)
-			    i.setAttribute("groupedWithAbove", "true");
+			if (this.breakbelow)
+			    i.setAttribute("groupedWithBelow", "true");
 			else
-			    i.removeAttribute("groupedWithAbove");
+			    i.removeAttribute("groupedWithBelow");
 			update(i);
 			setItemGroups(i, selectedGroups);
 			return "success";
@@ -3901,7 +3958,10 @@ public class SimplePageBean {
 	
 	private boolean uploadSizeOk(MultipartFile file) {
 	    long uploadedFileSize = file.getSize();
+	    return uploadSizeOk(uploadedFileSize);
+	}
 
+	private boolean uploadSizeOk(long uploadedFileSize) {
 	    if (uploadedFileSize == 0) {
 		setErrMessage(messageLocator.getMessage("simplepage.filezero"));
 		return false;
@@ -5756,15 +5816,12 @@ public class SimplePageBean {
 			
 			SimplePageItem item = null;
 			if (itemId == -1 && isMultimedia) {
-				int seq = getItemsOnPage(getCurrentPageId()).size() + 1;
-				item = simplePageToolDao.makeItem(getCurrentPageId(), seq, SimplePageItem.MULTIMEDIA, sakaiId, name);
+			    item = appendItem(sakaiId, name, SimplePageItem.MULTIMEDIA);
 			} else if(itemId == -1 && isWebsite) {
 			    String websiteName = name.substring(0,name.indexOf("."));
-			    int seq = getItemsOnPage(getCurrentPageId()).size() + 1;
-			    item = simplePageToolDao.makeItem(getCurrentPageId(), seq, SimplePageItem.RESOURCE, sakaiId, websiteName);
+			    item = appendItem(sakaiId, websiteName, SimplePageItem.RESOURCE);
 			} else if (itemId == -1) {
-				int seq = getItemsOnPage(getCurrentPageId()).size() + 1;
-				item = simplePageToolDao.makeItem(getCurrentPageId(), seq, SimplePageItem.RESOURCE, sakaiId, name);
+			    item = appendItem(sakaiId, name, SimplePageItem.RESOURCE);
 			} else if (isCaption) {
 				item = findItem(itemId);
 				if (item == null)
@@ -5794,10 +5851,10 @@ public class SimplePageBean {
 			// remember who added it, for permission checks
 			item.setAttribute("addedby", getCurrentUserId());
 
-			if (this.breakabove)
-			    item.setAttribute("groupedWithAbove", "true");
+			if (this.breakbelow)
+			    item.setAttribute("groupedWithBelow", "true");
 			else
-			    item.removeAttribute("groupedWithAbove");
+			    item.removeAttribute("groupedWithBelow");
 			item.setPrerequisite(this.prerequisite);
 
 			if (mimeType != null) {
@@ -5824,9 +5881,9 @@ public class SimplePageBean {
 			
 			clearImageSize(item);
 			try {
-				if (itemId == -1)
-					saveItem(item);
-				else
+			    //		if (itemId == -1)
+			    //		saveItem(item);
+			    //		  else
 					update(item);
 			} catch (Exception e) {
 			    System.out.println("save error " + e);
@@ -5850,45 +5907,134 @@ public class SimplePageBean {
 		return ret && path.delete();
 	}
 
+	public List<Map<String, Object>> getToolsFileItem() {
+		return ltiService.getToolsFileItem();
+	}
+
+	public void handleFileItem() {
+		ToolSession toolSession = sessionManager.getCurrentToolSession();
+		if (toolSession != null) toolSession.setAttribute("lessonbuilder.fileImportDone", "true");
+                String returnedData = ToolUtils.getRequestParameter("data");
+                String contentItems = ToolUtils.getRequestParameter("content_items");
+
+                // Retrieve the tool associated with the content item
+                String toolId = ToolUtils.getRequestParameter("toolId");
+                Long toolKey = SakaiBLTIUtil.getLongNull(toolId);
+                if ( toolKey == 0 || toolKey < 0 ) {
+			setErrKey("simplepage.lti-import-error-id", toolId);
+                        return;
+                }
+
+                Map<String, Object> tool = ltiService.getTool(toolKey);
+                if ( tool == null ) {
+			setErrKey("simplepage.lti-import-error-id", toolId);
+                        return;
+                }
+
+                // Parse, validate and check OAuth signature for the incoming ContentItem
+                ContentItem contentItem = null;
+                try {
+                        contentItem = SakaiBLTIUtil.getContentItemFromRequest(tool);
+                } catch(Exception e) {
+			setErrKey("simplepage.lti-import-bad-content-item", e.getMessage());
+			e.printStackTrace();
+                        return;
+                }
+		// System.out.println("contentItem="+contentItem);
+
+		// Extract the content item data
+		Map item = (Map) contentItem.getItemOfType(ContentItem.TYPE_FILEITEM);
+		if ( item == null ) {
+			setErrKey("simplepage.lti-import-missing-file-item", null);
+			return;
+		}
+
+		String localUrl = (String) item.get("url");
+		// System.out.println("localUrl="+localUrl);
+
+		InputStream fis = null;
+		if ( localUrl != null && localUrl.length() > 1 ) {
+			try {
+				URL parsedUrl = new URL(localUrl);
+				URLConnection yc = parsedUrl.openConnection();
+				fis = yc.getInputStream();
+			} catch ( Exception e ) {
+				setErrKey("simplepage.lti-import-error-reading-url", localUrl);
+				e.printStackTrace();
+				return;
+			}
+
+			// System.out.println("Importing...");
+			long length = importCcFromStream(fis);
+			if ( length > 0 && toolSession != null) {
+				String successMessage = messageLocator.getMessage("simplepage.lti-import-success-length").replace("{}", length+"");
+				toolSession.setAttribute("lessonbuilder.fileImportDone", successMessage);
+			}
+			return;
+		} else {
+			setErrKey("simplepage.lti-import-missing-url", null);
+		}
+	}
+
+	// Import a Common Cartridge
 	public void importCc() {
 	    if (!canEditPage())
 		return;
 	    if (!checkCsrf())
 		return;
 
+	    // Import an uploaded file
 	    MultipartFile file = null;
-
 	    if (multipartMap.size() > 0) {
 		// user specified a file, create it
 		file = multipartMap.values().iterator().next();
 	    }
 
+	    InputStream fis = null;
 	    if (file != null) {
 		if (!uploadSizeOk(file))
 		    return;
 
+		try {
+		    fis = file.getInputStream();
+		} catch(IOException e) {
+		    setErrKey("simplepage.cc-error", "");
+		    e.printStackTrace();
+		    return;
+		}
+		long length = importCcFromStream(fis);
+		setTopRefresh();
+	    }
+	}
+
+	// Import a Common Cartridge form an InputStream
+	private long importCcFromStream(InputStream fis) {
+
 		File cc = null;
 		File root = null;
+	        long length = 0;
 		try {
 		    cc = File.createTempFile("ccloader", "file");
 		    root = File.createTempFile("ccloader", "root");
 		    if (root.exists()) {
 			if (!root.delete()) {
 			    setErrMessage("unable to delete temp file for load");
-			    return;
+			    return -1;
 			}
 		    }
 		    if (!root.mkdir()) {
 			setErrMessage("unable to create temp directory for load");
-			return;
+			return -1;
 		    }
-		    BufferedInputStream bis = new BufferedInputStream(file.getInputStream());
+		    BufferedInputStream bis = new BufferedInputStream(fis);
 		    BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(cc));
 		    byte[] buffer = new byte[8096];
 		    int n = 0;
 		    while ((n = bis.read(buffer, 0, 8096)) >= 0) {
-			if (n > 0)
+			if (n > 0) {
 			    bos.write(buffer, 0, n);
+			    length += n;
+			}
 		    }
 		    bis.close();
 		    bos.close();
@@ -5916,11 +6062,11 @@ public class SimplePageBean {
 		    }
 
 		    parser.parse(new PrintHandler(this, cartridgeLoader, simplePageToolDao, quizobject, topicobject, bltiEntity, assignobject, importtop));
-		    setTopRefresh();
 		} catch (Exception e) {
 		    setErrKey("simplepage.cc-error", "");
 		  
 		    e.printStackTrace();
+		    length = -1;
 		} finally {
 		    if (cc != null)
 			try {
@@ -5934,10 +6080,10 @@ public class SimplePageBean {
 			    
 			}
 		}
-	    }
+		return length;
 	}
 
-    // called by edit dialog to update parameters of a Youtube item
+	// called by edit dialog to update parameters of a Youtube item
 	public void updateYoutube() {
 		if (!itemOk(youtubeId))
 		    return;
@@ -5998,10 +6144,10 @@ public class SimplePageBean {
 		item.setHeight(height);
 		item.setWidth(width);
 		item.setDescription(description);
-		if (this.breakabove)
-		    item.setAttribute("groupedWithAbove", "true");
+		if (this.breakbelow)
+		    item.setAttribute("groupedWithBelow", "true");
 		else
-		    item.removeAttribute("groupedWithAbove");
+		    item.removeAttribute("groupedWithBelow");
 		item.setPrerequisite(this.prerequisite);
 
 		update(item);
@@ -6080,10 +6226,10 @@ public class SimplePageBean {
 		item.setHeight(height);
 		item.setWidth(width);
 		item.setDescription(description);
-		if (this.breakabove)
-		    item.setAttribute("groupedWithAbove", "true");
+		if (this.breakbelow)
+		    item.setAttribute("groupedWithBelow", "true");
 		else
-		    item.removeAttribute("groupedWithAbove");
+		    item.removeAttribute("groupedWithBelow");
 		item.setPrerequisite(prerequisite);
 		item.setHtml(mimetype);
 		update(item);
@@ -6092,7 +6238,8 @@ public class SimplePageBean {
 
 	}
 	
-	public void addCommentsSection() {
+	public void addCommentsSection(String ab) {
+		addBefore = ab; // used by appendItem
 		if(canEditPage()) {
 			SimplePageItem item = appendItem("", messageLocator.getMessage("simplepage.comments-section"), SimplePageItem.COMMENTS);
 			item.setDescription(messageLocator.getMessage("simplepage.comments-section"));
@@ -6200,10 +6347,10 @@ public class SimplePageBean {
 			comment.setAnonymous(anonymous);
 			setItemGroups(comment, selectedGroups);
 			comment.setRequired(required);
-			if (this.breakabove)
-			    comment.setAttribute("groupedWithAbove", "true");
+			if (this.breakbelow)
+			    comment.setAttribute("groupedWithBelow", "true");
 			else
-			    comment.removeAttribute("groupedWithAbove");
+			    comment.removeAttribute("groupedWithBelow");
 			comment.setPrerequisite(prerequisite);
 			
 			if(maxPoints == null || maxPoints.equals("")) {
@@ -6304,7 +6451,8 @@ public class SimplePageBean {
 		return "failure";
 	}
 	
-	public void addStudentContentSection() {
+	public void addStudentContentSection(String ab) {
+		addBefore = ab; // used by appebdItem
 		if(getCurrentPage().getOwner() == null && canEditPage()) {
 			SimplePageItem item = appendItem("", messageLocator.getMessage("simplepage.student-content"), SimplePageItem.STUDENT_CONTENT);
 			item.setDescription(messageLocator.getMessage("simplepage.student-content"));
@@ -6638,10 +6786,10 @@ public class SimplePageBean {
 		    item.setGradebookPoints(pointsInt);
 		else
 		    item.setGradebookPoints(null);
-		if (this.breakabove)
-		    item.setAttribute("groupedWithAbove", "true");
+		if (this.breakbelow)
+		    item.setAttribute("groupedWithBelow", "true");
 		else
-		    item.removeAttribute("groupedWithAbove");
+		    item.removeAttribute("groupedWithBelow");
 		item.setPrerequisite(prerequisite);
 		
 		update(item);
@@ -6804,10 +6952,10 @@ public class SimplePageBean {
 			page.setShowComments(comments);
 			page.setForcedCommentsAnonymous(forcedAnon);
 			page.setRequired(required);
-			if (this.breakabove)
-			    page.setAttribute("groupedWithAbove", "true");
+			if (this.breakbelow)
+			    page.setAttribute("groupedWithBelow", "true");
 			else
-			    page.removeAttribute("groupedWithAbove");
+			    page.removeAttribute("groupedWithBelow");
 			page.setPrerequisite(prerequisite);
 			page.setGroupOwned(groupOwned);
 			

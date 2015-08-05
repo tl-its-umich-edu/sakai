@@ -18,26 +18,14 @@
             <div #if ( ${tabsSites} ) class="Mrphs-mainHeader is-maximized" #else class="Mrphs-mainHeader is-minimized" #end>
 
                 ## Header
-                #parse("/vm/morpheus/snippets/header-snippet.vm")
+                <div class="Mrphs-topHeader">
+                    #parse("/vm/morpheus/snippets/header-snippet.vm")
+                    #parse("/vm/morpheus/includeLoginNav.vm")
+                </div>
 
                 #if (${tabsSites})
                     ## tabs
                     #parse("/vm/morpheus/includeTabs.vm")
-
-                #else
-
-                    <nav class="Mrphs-loginNav Mrphs-loginNav--no-sites">
-                        <!-- login component -->
-
-                            #if (!${loginTopLogin})
-                                #parse("/vm/morpheus/snippets/loginImage-snippet.vm")
-                            #else
-                                #parse("/vm/morpheus/snippets/loginForm-snippet.vm")
-                                <script src="${pageScriptPath}caps-lock-checker.js$!{portalCDNQuery}"></script>
-                            #end ## END of IF (!${loginTopLogin})
-
-                        <!-- end login component -->
-                    </nav>
 
                 #end ## END of IF (${tabsSites})
 
@@ -50,40 +38,6 @@
         </div> <!-- end Mrphs-portalWrapper -->
         <!-- END VM site.vm -->
         
-        <script>
-            ## SAK-16484 Allow Javascript to easily get at user details.
-            ## SAK-13987, SAK-16162, SAK-19132 - Portal Logout Timer
-            var portal = { 
-                "chat": {
-                    "enabled": $!{neoChat},
-                    "pollInterval": $!{portalChatPollInterval},
-            "video" : {
-            "enabled": $!{neoChatVideo}
-            }
-                },
-                "loggedIn": $!{loggedIn},
-                "portalPath": "$!{portalPath}",
-                "loggedOutUrl": "$!{loggedOutUrl}",
-                "siteId": "$!{siteId}",
-                "siteTitle": "$!{siteTitle}",
-                "shortDescription" : "$!{shortDescription}",
-                "locale": "$!{locale}",
-                "user": {
-                    "id": "$!{userId}",
-                    "eid": "$!{userEid}"
-                },
-                "timeoutDialog" : {
-                "enabled": $!{timeoutDialogEnabled},
-                "seconds": $!{timeoutDialogWarningSeconds}
-                },
-                "toggle" : {
-                    "allowauto": false,
-                    "tools": false,
-                    "sitenav": false // This is not allowed in morpheus
-                }
-            };
-        </script>
-
         #if ( ${bufferedResponse} && ${responseHead} )
         #else 
             ${sakai_html_head_js}
@@ -157,8 +111,9 @@
 
             ${d}PBJQ(document).ready(function() {
                 setupSiteNav();
-                ## Moved IE aria label code to sakai.portal.ie.js // SAK-22308 
+                ## Moved IE aria label code to sakai.portal.ie.js // SAK-22308 	
             });
+			
         </script>
 
         <script>
@@ -189,6 +144,8 @@
         #parse("/vm/morpheus/includePASystem.vm")
 
         #parse("/vm/morpheus/includeCookieNotice.vm")
+
+        #parse("/vm/morpheus/includeGoogleTagManager.vm")
 
         ${includeExtraHead}
     </body>

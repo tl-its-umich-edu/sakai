@@ -58,7 +58,6 @@ import org.sakaiproject.pasystem.api.PASystem;
 import org.sakaiproject.portal.api.Editor;
 import org.sakaiproject.portal.api.PageFilter;
 import org.sakaiproject.portal.api.Portal;
-import org.sakaiproject.portal.api.PortalService;
 import org.sakaiproject.portal.api.PortalChatPermittedHelper;
 import org.sakaiproject.portal.api.PortalHandler;
 import org.sakaiproject.portal.api.PortalRenderContext;
@@ -90,10 +89,10 @@ import org.sakaiproject.portal.charon.handlers.StaticStylesHandler;
 import org.sakaiproject.portal.charon.handlers.TimeoutDialogHandler;
 import org.sakaiproject.portal.charon.handlers.ToolHandler;
 import org.sakaiproject.portal.charon.handlers.ToolResetHandler;
+import org.sakaiproject.portal.charon.handlers.PageResetHandler;
 import org.sakaiproject.portal.charon.handlers.WorksiteHandler;
 import org.sakaiproject.portal.charon.handlers.WorksiteResetHandler;
 import org.sakaiproject.portal.charon.handlers.XLoginHandler;
-import org.sakaiproject.portal.charon.site.PortalSiteHelperImpl;
 import org.sakaiproject.portal.render.api.RenderResult;
 import org.sakaiproject.portal.render.cover.ToolRenderService;
 import org.sakaiproject.portal.util.ErrorReporter;
@@ -130,6 +129,8 @@ import org.sakaiproject.util.Validator;
 import org.sakaiproject.util.Web;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.sakaiproject.portal.api.PortalService;
+import org.sakaiproject.portal.charon.site.PortalSiteHelperImpl;
 
 
 /**
@@ -511,7 +512,8 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 		String title = ServerConfigurationService.getString("ui.service","Sakai");
 		if (site != null)
 		{
-			title = title + ":" + site.getTitle();
+			// SAK-29138
+			title = title + ":" + siteHelper.getUserSpecificSiteTitle( site );
 			if (placement != null) title = title + " : " + placement.getTitle();
 		}
 
@@ -1023,6 +1025,12 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 				ServerConfigurationService.getBoolean("portal.google.analytics_detail", false));
 		}
 
+		//SAK-29668
+		String googleTagManagerContainerId =  ServerConfigurationService.getString("portal.google.tag.manager.container_id", null);
+		if ( googleTagManagerContainerId != null ) {
+			rcontext.put("googleTagManagerContainerId", googleTagManagerContainerId);
+		}
+
 		Session s = SessionManager.getCurrentSession();
 		rcontext.put("loggedIn", Boolean.valueOf(s.getUserId() != null));
 		rcontext.put("userId", s.getUserId());
@@ -1425,7 +1433,28 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 		HttpServletResponse res, Placement p, String skin, String toolContextPath,
 		String toolPathInfo) throws ToolException
 	{
+		// SAK-29656 - Make sure the request URL and toolContextPath treat tilde encoding the same way
+		//
+		// Since we cannot easily change what the request object already knows as its URL,
+		// we patch the toolContextPath to match the tilde encoding in the request URL.
+		//
+		// This is what we would see in Chrome and Firefox.  Firefox fails with Wicket
+		// Chrome: forwardtool call http://localhost:8080/portal/site/~csev/tool/aaf64e38-00df-419a-b2ac-63cf2d7f99cf
+		//    toolPathInfo null ctx /portal/site/~csev/tool/aaf64e38-00df-419a-b2ac-63cf2d7f99cf
+		// Firefox: http://localhost:8080/portal/site/%7ecsev/tool/aaf64e38-00df-419a-b2ac-63cf2d7f99cf/
+		//    toolPathInfo null ctx /portal/site/~csev/tool/aaf64e38-00df-419a-b2ac-63cf2d7f99cf
 
+		String reqUrl = req.getRequestURL().toString();
+		if ( reqUrl.indexOf(toolContextPath) < 0 ) {
+			M_log.debug("Mismatch between request url " + reqUrl + " and toolContextPath " + toolContextPath);
+			if ( toolContextPath.indexOf("/~") > 0 && reqUrl.indexOf("/~") < 1 ) {
+				if ( reqUrl.indexOf("/%7e") > 0 ) {
+					toolContextPath = toolContextPath.replace("/~","/%7e");
+				} else {
+					toolContextPath = toolContextPath.replace("/~","/%7E");
+				}
+			}
+		}
 		M_log.debug("forwardtool call " + req.getRequestURL().toString() + " toolPathInfo " + toolPathInfo + " ctx " + toolContextPath);
 
 		// if there is a stored request state, and path, extract that from the
@@ -1978,6 +2007,7 @@ public class SkinnableCharonPortal extends HttpServlet implements Portal
 
 		addHandler(new ToolHandler());
 		addHandler(new ToolResetHandler());
+		addHandler(new PageResetHandler());
 		addHandler(new PageHandler());
 		addHandler(worksiteHandler);
 		addHandler(new WorksiteResetHandler());

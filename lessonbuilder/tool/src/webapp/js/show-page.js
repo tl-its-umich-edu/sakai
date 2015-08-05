@@ -26,6 +26,11 @@ function msg(s) {
        return m.innerHTML;;
 }
 
+function setupdialog(oe) {
+	oe.dialog("option", "width", modalDialogWidth());
+	$('.ui-dialog').zIndex(150000);
+}
+
 function checksize(oe) {
     // jquery wraps the content in another div. we need that div, except dropdowndiv is our own
 	if (!oe.hasClass("dropDownDiv")) {
@@ -61,7 +66,9 @@ function safeParseFloat(s) {
 
 var blankRubricTemplate, blankRubricRow;
 
-$(function() {
+// Note from Chuck S. - Is there a strong reason to do this before ready()?
+// $(function() {
+$(document).ready(function() {
 	var breadcrumbs = $(".breadcrumbs span");
 	if (breadcrumbs.size() > 0) {
 	    $(".Mrphs-toolTitleNav__addLeft").append($(".breadcrumbs span"));
@@ -86,32 +93,32 @@ $(function() {
 	if($("#subpage-dialog").length > 0) {
 		$('#subpage-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#edit-item-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#edit-multimedia-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#add-multimedia-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
@@ -119,88 +126,88 @@ $(function() {
 		// hardcode height so we have space for date picker
 		$('#edit-title-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
-	
+
 		$('#new-page-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#remove-page-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#youtube-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 	
 		$('#movie-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 	
 		$('#import-cc-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 	
 		$('#export-cc-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 
 		$('#comments-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 	
 		$('#student-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
 		
 		$('#question-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
-		
+
 		$('#delete-confirm').dialog({
 			autoOpen: false,
 			resizable: false,
-			    modal: true,
+			modal: true,
 			dialogClass: "no-close",
 			    buttons: [{text:msg("simplepage.delete"),
 				          click: function() {
@@ -210,6 +217,17 @@ $(function() {
 				          click: function() {
 				          $( this ).dialog( "close" );}}
 				]});
+
+		
+		$(window).resize(function() {
+			var modalDialogList = ['#subpage-dialog', '#edit-item-dialog', '#edit-multimedia-dialog',
+			'#add-multimedia-dialog', '#edit-title-dialog', '#new-page-dialog', '#remove-page-dialog',
+			'#youtube-dialog', '#movie-dialog', '#import-cc-dialog', '#export-cc-dialog',
+			'#comments-dialog', '#student-dialog', '#question-dialog', '#delete-confirm'];
+			for (var i = 0; i < modalDialogList.length; i++) {
+				$(modalDialogList[i]).dialog("option", "width", modalDialogWidth());
+			}
+		});
 
 		/* RU Rubrics ********************************************* */
 		$("#rubric-title").append($("#peer-eval-title-cloneable input"));
@@ -221,9 +239,8 @@ $(function() {
 				
 		$('#peer-eval-create-dialog').dialog({
 			autoOpen: false,
-			width: 600,
-			height: 400,
-			modal: false,
+			width: modalDialogWidth(),
+			modal: true,
 			resizable: false,
 			draggable: false
 		});
@@ -239,19 +256,18 @@ $(function() {
 
 		$('.subpage-link').click(function(){
 			closeDropdowns();
-			var position =  $(this).position();
-			$("#subpage-dialog").dialog("option", "position", [position.left, position.top]);
+			if ($(this).hasClass("add-at-end"))
+			    addAboveItem = '';
 			oldloc = $(this);
+			$('#subpage-add-before').val(addAboveItem);
 			$('#subpage-dialog').dialog('open');
-			checksize($('#subpage-dialog'));
+			setupdialog($('#subpage-dialog'));
 			return false;
 		});
 
 		$('#edit-title').click(function(){
 			closeDropdowns();
 			$('#edit-title-error-container').hide();
-			var position =  $(this).position();
-			$("#edit-title-dialog").dialog("option", "position", [position.left, position.top]);
 			if ($("#page-points").val() === '') {
 				$("#page-gradebook").prop("checked", false);
 				$("#page-points").prop("disabled", true);
@@ -271,7 +287,7 @@ $(function() {
 
 			oldloc = $(".dropdown a");
 			$('#edit-title-dialog').dialog('open');
-			checksize($('#edit-title-dialog'));
+			setupdialog($('#edit-title-dialog'));
 			return false;
 		});
 
@@ -281,13 +297,11 @@ $(function() {
 
 		$('#import-cc').click(function(){
 			closeDropdowns();
-			var position =  $(this).position();
-			$("#import-cc-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(".dropdown a");
 			$("#import-cc-loading").hide();
 			importccactive = true;
 			$('#import-cc-dialog').dialog('open');
-			checksize($('#import-cc-dialog'));
+			setupdialog($('#import-cc-dialog'));
 			return false;
 		});
 
@@ -311,11 +325,9 @@ $(function() {
 		
 		$('#export-cc').click(function(){
 			closeDropdowns();
-			var position =  $(this).position();
-			$("#export-cc-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(".dropdown a");
 			$('#export-cc-dialog').dialog('open');
-			checksize($('#export-cc-dialog'));
+			setupdialog($('#export-cc-dialog'));
 			return false;
 		});
 
@@ -482,22 +494,18 @@ $(function() {
 
 		$('#new-page').click(function(){
 			closeDropdowns();
-			var position =  $(this).position();
-			$("#new-page-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(".dropdown a");
 			$('#new-page-dialog').dialog('open');
-			checksize($('#new-page-dialog'));
+			setupdialog($('#new-page-dialog'));
 			return false;
 		});
 
 		$('.remove-page').click(function(){
 			closeDropdowns();
-			var position =  $(this).position();
-			$("#remove-page-dialog").dialog("option", "position", [position.left, position.top]);
 			// rsf puts the URL on the non-existent src attribute
 			oldloc = $(".dropdown a");
 			$('#remove-page-dialog').dialog('open');
-			checksize($('#remove-page-dialog'));
+			setupdialog($('#remove-page-dialog'));
 			return false;
 		});
 
@@ -509,28 +517,9 @@ $(function() {
 		//		return true;
 		//	});
 
-		var outerWidth = $('#outer').width();
-		if (outerWidth < 500) {
-			$("#subpage-dialog").dialog("option", "width", outerWidth-10);
-			$("#edit-item-dialog").dialog("option", "width", outerWidth-10);
-			$("#edit-multimedia-dialog").dialog("option", "width", outerWidth-10);
-			$("#add-multimedia-dialog").dialog("option", "width", outerWidth-10);
-			$("#edit-title-dialog").dialog("option", "width", outerWidth-10);
-			$("#import-cc-dialog").dialog("option", "width", outerWidth-10);
-			$("#export-cc-dialog").dialog("option", "width", outerWidth-10);
-			$("#new-page-dialog").dialog("option", "width", outerWidth-10);
-			$("#remove-page-dialog").dialog("option", "width", outerWidth-10);
-			$("#youtube-dialog").dialog("option", "width", outerWidth-10);
-			$("#movie-dialog").dialog("option", "width", outerWidth-10);
-			$("#subpage-link").dialog("option", "width", outerWidth-10);
-			$("#comments-dialog").dialog("option", "width", outerWidth-10);
-			$("#student-dialog").dialog("option", "width", outerWidth-10);
-			$("#question-dialog").dialog("option", "width", outerWidth-10);
-		}
-		
 		$(".edit-youtube").click(function(){
 			closeDropdowns();
-            $('li').removeClass('editInProgress');
+			$('li').removeClass('editInProgress');
 			$("#editgroups-youtube").after($("#grouplist"));
 			$("#grouplist").hide();
 			$("#editgroups-youtube").hide();
@@ -548,7 +537,7 @@ $(function() {
 			}
 
 
-			$('#youtube-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#youtube-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 
 			if(row.find(".prerequisite-info").text() === 'true') {
 			    $('#youtube-prerequisite').prop('checked',true);
@@ -563,13 +552,11 @@ $(function() {
 			$("#youtubeHeight").val(row.find(".mm-height").text());
 			$("#youtubeWidth").val(row.find(".mm-width").text());
 			$("#description4").val(row.find(".description").text());
-			var position =  row.position();
-            $('.edit-col').addClass('edit-colHidden');
-            $(this).closest('li').addClass('editInProgress');
-			$("#youtube-dialog").dialog("option", "position", [position.left, position.top]);
+			$('.edit-col').addClass('edit-colHidden');
+			$(this).closest('li').addClass('editInProgress');
 			oldloc = $(this);
 			$('#youtube-dialog').dialog('open');
-			checksize($('#youtube-dialog'));
+			setupdialog($('#youtube-dialog'));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -621,20 +608,18 @@ $(function() {
 			$("#movie-height").val(row.find(".mm-height").text());
 			$("#movie-width").val(row.find(".mm-width").text());
 			$("#description3").val(row.find(".description").text());
-			$('#movie-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#movie-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 			if (row.find(".movie-prerequisite").text() === 'true') {
 			    $('#movie-prerequisite').prop('checked', true);
 			} else {
 			    $('#movie-prerequisite').prop('checked', false);
 			}
 			$("#mimetype4").val(row.find(".mm-type").text());
-			var position =  row.position();
 			$('.edit-col').addClass('edit-colHidden');
 			$(this).closest('li').addClass('editInProgress');
-			$("#movie-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$("#movie-dialog").dialog('open');
-			checksize($("#movie-dialog"));
+			setupdialog($("#movie-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -678,7 +663,7 @@ $(function() {
 				$("#comments-required").prop("checked", false);
 			}
 			
-			$('#comments-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#comments-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 			var prerequisite = row.find(".commentsitem-prerequisite").text();
 			if(prerequisite === "true") {
 				$("#comments-prerequisite").prop("checked", true);
@@ -699,13 +684,11 @@ $(function() {
 				$("#comments-max").val("");
 			}
 			
-			var position = row.position();
             $('.edit-col').addClass('edit-colHidden');
             $(this).closest('li').addClass('editInProgress');
-			$("#comments-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$('#comments-dialog').dialog('open');
-			checksize($("#comments-dialog"));
+			setupdialog($("#comments-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -818,7 +801,7 @@ $(function() {
 			}else {
 				$("#student-required").prop("checked", false);
 			}
-			$('#student-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#student-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 			var prerequisite = row.find(".studentitem-prerequisite").text();
 			if(prerequisite === "true") {
 				$("#student-prerequisite").prop("checked", true);
@@ -907,13 +890,11 @@ $(function() {
 			
 			insist = false;
 			$("#student-group-errors").text("");
-			var position = row.position();
 			$('.edit-col').addClass('edit-colHidden');
 			$(this).closest('li').addClass('editInProgress');
-			$("#student-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$('#student-dialog').dialog('open');
-			checksize($("#student-dialog"));
+			setupdialog($("#student-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -957,13 +938,13 @@ $(function() {
 		$("#editgroups-student").click(function(){
 			$("#editgroups-student").hide();
 			$("#grouplist").show();
-			checksize($("#student-dialog"));
+			setupdialog($("#student-dialog"));
 		    });
 
 		$("#student-group-owned").click(function(){
 			$("#student-group-show").show();
 			$("#student-grouplist").show();
-			checksize($("#student-dialog"));
+			setupdialog($("#student-dialog"));
 		    });
 
 		$("#student-comments").click(function() {
@@ -978,6 +959,19 @@ $(function() {
 			}
 		});
 		
+		function fixAddBefore(href) {
+			var re = /(&|\?)addBefore=[^&]*(&|$)/;
+			var res = re.exec(href);
+			var n = res[1] + 'addBefore=' + (addAboveItem === null ? "" : addAboveItem) + res[2];
+			return href.replace(re, n);
+
+		}
+
+		$(".add-before-param").click(function() {
+			$(this).attr('href', fixAddBefore($(this).attr('href')));
+			return true;
+		    });
+
 		/* RU Rubrics ********************************************* */
 		$("#peer-eval-check").change(function() {
 			if(!$("#peer-eval-check").prop("checked")) {
@@ -1038,8 +1032,6 @@ $(function() {
 			    $("#grouplist").show();
 			}
 
-			var position =  $(this).position();
-
 			$('#question-error-container').hide();
 			$("#questionEditId").val("-1");
 			$("#question-text-input").val("");
@@ -1063,10 +1055,10 @@ $(function() {
 			$("#question-incorrect-text").val("");
 			$("#update-question").attr("value", msg("simplepage.save_message"));
 			
-			$("#question-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
+			$("#question-addBefore").val(addAboveItem);
 			$('#question-dialog').dialog('open');
-			checksize($('#subpage-dialog'));
+			setupdialog($('#subpage-dialog'));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -1195,7 +1187,7 @@ $(function() {
 				$("#question-required").prop("checked", false);
 			}
 			
-			$('#question-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#question-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 			var prerequisite = row.find(".questionitem-prerequisite").text();
 			if(prerequisite === "true") {
 				$("#question-prerequisite").prop("checked", true);
@@ -1205,17 +1197,15 @@ $(function() {
 			
 			$("#delete-question-div").show();
 			
-			var position = row.position();
 			$("#delete-question-div").hide();
 			$('.edit-col').addClass('edit-colHidden');
 			$(this).closest('li').addClass('editInProgress');
 			$('#question-error-container').hide();
 			$("#update-question").attr("value", msg("simplepage.edit"));
 
-			$("#question-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$('#question-dialog').dialog('open');
-			checksize($("#question-dialog"));
+			setupdialog($("#question-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -1232,15 +1222,14 @@ $(function() {
 
 			$("#mm-item-id").val($("#movieEditId").val());
 			$("#mm-is-mm").val('true');
+			$("#mm-add-before").val(addAboveItem);
 			var href=$(this).attr("href");
 			var editingCaption = (href.indexOf("&caption=true&")>0);
 			$("#mm-is-caption").val(editingCaption ? "true" : "false");
-			href=fixhref(href, $("#movieEditId").val(), "true", "false");
+			href=fixAddBefore(fixhref(href, $("#movieEditId").val(), "true", "false"));
 			$("#mm-choose").attr("href",href);
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
 
-			var position =  $("#movie-dialog").dialog('option','position');
-			$("#add-multimedia-dialog").dialog("option", "position", position);
 			$(".mm-additional").show();
 			$(".mm-additional-website").hide();
 			$("#checkingwithhost").hide();
@@ -1256,7 +1245,7 @@ $(function() {
 			$("#mm-error-container").hide();
 			insist = false;
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			// originally I thought it was confusing to start with the focus on some
 			// specific item in the dialog. The problem is that JAWS won't announce
 			// the dialog unless some item has focus
@@ -1268,7 +1257,7 @@ $(function() {
 		$("#expert-movie-toggle").click(function(){
 			$("#expert-movie-toggle-div").hide();
 			$("#expert-movie").show();
-			checksize($("#movie-dialog"));
+			setupdialog($("#movie-dialog"));
 			return false;
 		});
 		
@@ -1307,7 +1296,7 @@ $(function() {
 			$("#name").val(row.find(".link-text").text());
 			$("#description").val(row.find(".rowdescription").text());
 					      
-			$('#item-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#item-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 
 			var prereq = row.find(".prerequisite-info").text();
 
@@ -1543,11 +1532,9 @@ $(function() {
 			setUpRequirements();
 		        $("#item-id").val(row.find(".current-item-id2").text());
 			$("#edit-item-error-container").hide();
-			var position =  $(this).closest('li').position();
-			$("#edit-item-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$("#edit-item-dialog").dialog('open');
-			checksize($("#edit-item-dialog"));
+			setupdialog($("#edit-item-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -1568,12 +1555,11 @@ $(function() {
 
 			$("#mm-item-id").val($("#item-id").val());
 			$("#mm-is-mm").val('false');
+			$("#mm-add-before").val(addAboveItem);
 			var href=$("#mm-choose").attr("href");
-			href=fixhref(href, $("#item-id").val(), "false", "false");
+			href=fixAddBefore(fixhref(href, $("#item-id").val(), "false", "false"));
 			$("#mm-choose").attr("href",href);
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
-			var position =  $("#edit-item-dialog").dialog('option','position');
-			$("#add-multimedia-dialog").dialog("option", "position", position);
 			$(".mm-additional").show();
 			$(".mm-additional-website").hide();
 			$(".mm-url-section").show();
@@ -1584,7 +1570,7 @@ $(function() {
 			$("#mm-error-container").hide();
 			insist = false;
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			//$('.edit-multimedia-input').blur();
 			//$('.edit-multimedia-input').blur();
 			return false;
@@ -1599,14 +1585,12 @@ $(function() {
 			$("#mm-item-id").val(-1);
 			$("#mm-is-mm").val('true');
 			$("#mm-is-website").val('false');
+			$("#mm-add-before").val(addAboveItem);
 			$("#mm-is-caption").val('false');
 			var href=$("#mm-choose").attr("href");
-			href=fixhref(href, "-1", "true", "false");
+			href=fixAddBefore(fixhref(href, "-1", "true", "false"));
 			$("#mm-choose").attr("href",href);
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
-			var position =  $(this).position();
-            
-			$("#add-multimedia-dialog").dialog("option", "position", [position.left, position.top]);
 			$(".mm-additional").show();
 			$(".mm-additional-website").hide();
 			$(".mm-url-section").show();
@@ -1618,7 +1602,7 @@ $(function() {
 			insist = false;
 			oldloc = $(this);
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			//$('.edit-multimedia-input').blur();
 			//$('.mm-additional-instructions').blur();
 			return false;
@@ -1626,19 +1610,20 @@ $(function() {
 
 		$(".add-resource").click(function(){
 			closeDropdowns();
+			if ($(this).hasClass("add-at-end"))
+			    addAboveItem = '';
 			mm_test_reset();
 			$("#addLink_label").text(msg("simplepage.addLink_label_add"));
 
 			$("#mm-item-id").val(-1);
 			$("#mm-is-mm").val('false');
+			$("#mm-add-before").val(addAboveItem);
 			$("#mm-is-website").val('false');
 			$("#mm-is-caption").val('false');
 			var href=$("#mm-choose").attr("href");
-			href=fixhref(href,"-1","false","false");
+			href=fixAddBefore(fixhref(href,"-1","false","false"));
 			$("#mm-choose").attr("href",href);
-			var position =  $(this).position();
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
-			$("#add-multimedia-dialog").dialog("option", "position", [position.left, position.top]);
 			$(".mm-additional").hide();
 			$(".mm-additional-website").hide();
 			$(".mm-url-section").show();
@@ -1650,7 +1635,7 @@ $(function() {
 			insist = false;
 			oldloc = $(this);
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			//$('.edit-multimedia-input').blur();
 			return false;
 		});
@@ -1663,13 +1648,12 @@ $(function() {
 			$("#mm-item-id").val(-1);
 			$("#mm-is-mm").val('false');
 			$("#mm-is-website").val('true');
+			$("#mm-add-before").val(addAboveItem);
 			$("#mm-is-caption").val('false');
 			var href=$("#mm-choose").attr("href");
-			href=fixhref(href, "-1","false","true");
+			href=fixAddBefore(fixhref(href, "-1","false","true"));
 			$("#mm-choose").attr("href",href);
-			var position =  $(this).position();
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
-			$("#add-multimedia-dialog").dialog("option", "position", [position.left, position.top]);
 			$(".mm-additional").hide();
 			$(".mm-additional-website").show();
 			$(".mm-url-section").hide();
@@ -1681,7 +1665,7 @@ $(function() {
 			$("#mm-error-container").hide();
 			insist = false;
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			//$('.edit-multimedia-input').blur();
 			//$('.mm-additional-website-instructions').blur();
 			return false;
@@ -1718,7 +1702,7 @@ $(function() {
 			    }
 			}
 
-			$('#multi-break').prop('checked',$(this).closest('li').hasClass('right-col-top'));
+			$('#multi-break').prop('checked',$(this).closest('li').hasClass('right-col-bottom'));
 			if(row.find(".prerequisite-info").text() === 'true') {
 			    $('#multi-prerequisite').prop('checked', true);
 			} else {
@@ -1761,14 +1745,12 @@ $(function() {
 			     $("#change-resource-mm").attr("href").replace("pageItemId=-1", 
 				   "pageItemId=" + row.find(".mm-itemid").text()));
 			$("#multimedia-item-id").val(row.find(".mm-itemid").text());
-			var position =  row.position();
             $('.edit-col').addClass('edit-colHidden');
             $(this).closest('li').addClass('editInProgress');
 
-			$("#edit-multimedia-dialog").dialog("option", "position", [position.left, position.top]);
 			oldloc = $(this);
 			$("#edit-multimedia-dialog").dialog('open');
-			checksize($("#edit-multimedia-dialog"));
+			setupdialog($("#edit-multimedia-dialog"));
 			$("#grouplist").hide();
 			return false;
 		});
@@ -1781,7 +1763,7 @@ $(function() {
 		$("#expert-multimedia-toggle").click(function(){
 			$("#expert-multimedia-toggle-div").hide();
 			$("#expert-multimedia").show();
-			checksize($("#edit-multimedia-dialog"));
+			setupdialog($("#edit-multimedia-dialog"));
 			return false;
 		});
 
@@ -1792,12 +1774,11 @@ $(function() {
 
 			$("#mm-item-id").val($("#multimedia-item-id").val());
 			$("#mm-is-mm").val('true');
+			$("#mm-add-before").val(addAboveItem);
 			var href=$("#mm-choose").attr("href");
-			href=fixhref(href, $("#multimedia-item-id").val(), true, false);
+			href=fixAddBefore(fixhref(href, $("#multimedia-item-id").val(), true, false));
 			$("#add-multimedia-dialog").prev().children(".ui-dialog-title").text($(this).text());
 			$("#mm-choose").attr("href",href);
-			var position =  $("#edit-multimedia-dialog").dialog('option','position');
-			$("#add-multimedia-dialog").dialog("option", "position", position);
 			$(".mm-additional").show();
 			$(".mm-additional-website").hide();
 			$(".mm-url-section").show();
@@ -1808,7 +1789,7 @@ $(function() {
 			$("#mm-error-container").hide();
 			insist = false;
 			$("#add-multimedia-dialog").dialog('open');
-			checksize($("#add-multimedia-dialog"));
+			setupdialog($("#add-multimedia-dialog"));
 			//$('.edit-multimedia-input').blur();
 			//$('.mm-additional-instructions').blur();
 			return false;
@@ -1830,7 +1811,6 @@ $(function() {
 			}
 			insist = false;
 			$("#delete-confirm-message").text(message);
-			$("#delete-confirm").dialog("option", "position", [event.pageX, event.pageY-100]);
 			$("#delete-confirm").dialog('open');
 			return false;
 		    };
@@ -1842,6 +1822,14 @@ $(function() {
 			    return true;
 			delbutton = $('#delete-comments-item');
 			return delete_confirm(event, msg("simplepage.deletecommentsubmissionexist"));
+		    });
+
+		$('.del-item-link').click(function(event) {
+			// edit row is set by edit-comments. We're current in the dialog. need
+			// to look in the actual page row.
+			$("#delete-item-itemid").val($(this).parents("li").find("span.itemid").text());
+			delbutton = $('#delete-item-button');
+			return delete_confirm(event, msg("simplepage.delete_page_confirm"));
 		    });
 
 		$('#delete-student-item').click(function(event) {
@@ -1923,7 +1911,7 @@ $(function() {
         e.preventDefault();
 		var pollGraph = $(this).parents(".questionDiv").find(".questionPollGraph");
 		
-		if($(this).find("span").text() === $(this).parent().find(".show-poll").text()) {
+		if($(this).attr("value") === $(this).parents(".questionDiv").find(".show-poll").text()) {
 			pollGraph.empty();
 			var pollData = [];
 			pollGraph.parent().find(".questionPollData").each(function(index) {
@@ -1936,12 +1924,12 @@ $(function() {
 			pollGraph.show();
 			pollGraph.jqBarGraph({data: pollData, height:100, speed:1});
 			
-			$(this).find("span").text($(this).parent().find(".hide-poll").text());
+			$(this).attr("value",($(this).parents(".questionDiv").find(".hide-poll").text()));
 		}else {
 			pollGraph.hide();
 			pollGraph.empty();
 			
-			$(this).find("span").text($(this).parent().find(".show-poll").text());
+			$(this).attr("value",($(this).parents(".questionDiv").find(".show-poll").text()));
 		}
 
         resizeFrame('grow');
@@ -2066,6 +2054,14 @@ $(function() {
 			out: buttonRemoveHighlightc
 	};
 
+	var megaConfiga = {	
+			interval: 200,
+			sensitivity: 7,
+			over: buttonAddHighlighta,
+			timeout: 700,
+			out: buttonRemoveHighlightc
+	};
+
 	var dropdownConfig = {	
 			interval: 0,
 			sensitivity: 7,
@@ -2109,12 +2105,14 @@ $(function() {
 
 	$("#dropdown").hoverIntent(megaConfig);
 	$("#dropdownc").hoverIntent(megaConfigc);
+	//	$(".plus-edit-icon").hoverIntent(megaConfiga);
 	$("#moreDiv").hide();
 	$("#addContentDiv").hide();
 	$("#moreDiv").hoverIntent(dropdownConfig);
 	$("#addContentDiv").hoverIntent(dropdowncConfig);
 	$("#dropdown").click(buttonToggleDropdown);
 	$("#dropdownc").click(buttonToggleDropdownc);
+	$(".plus-edit-icon").click(buttonToggleDropdowna);
 	dropDownViaClick = false;
 
 	$("#moreDiv").on('keyup',function(evt) {
@@ -2464,26 +2462,42 @@ $(function() {
 });
 
 var hasBeenInMenu = false;
+var addAboveItem = "";
 
 function buttonAddHighlight() {
+    addAboveItem = '';
     if (!$("#addContentDiv").is(":visible"))
 	addHighlight($("#moreDiv"), $("#dropdown"));
     return false;
 }
 
 function buttonAddHighlightc() {
-    if (!$("#moreDiv").is(":visible"))
+    addAboveItem = '';
+    if (!$("#moreDiv").is(":visible")) {
 	addHighlight($("#addContentDiv"), $("#dropdownc"));
+    }
+    return false;
+}
+
+function buttonAddHighlighta() {
+    if (!$("#moreDiv").is(":visible")) {
+	addAboveItem = $(this).parents("li").find("span.itemid").text();
+	addHighlight($("#addContentDiv"), $("#dropdownc"));
+    }
     return false;
 }
 
 function menuAddHighlight() {
+    addAboveItem = "";
     hasBeenInMenu = true;
     addHighlight($("#moreDiv"), $("#dropdown"));
     return false;
 }
 
 function menuAddHighlightc() {
+    if(!dropDiv.is(":visible")) {
+	addAboveItem = "";
+    }
     hasBeenInMenu = true;
     addHighlight($("#addContentDiv"), $("#downdownc"));
     return false;
@@ -2546,10 +2560,17 @@ function removeHighlight(dropDiv, button) {
 }
 
 function buttonToggleDropdown() {
+    addAboveItem = "";
     toggleDropdown($("#moreDiv"), $("#dropdown"));
 }
 
 function buttonToggleDropdownc() {
+    addAboveItem = "";
+    toggleDropdown($("#addContentDiv"), $("#dropdownc"));
+}
+
+function buttonToggleDropdowna() {
+    addAboveItem = $(this).parents("li").find("span.itemid").text();
     toggleDropdown($("#addContentDiv"), $("#dropdownc"));
 }
 
@@ -2607,7 +2628,7 @@ function reposition() {
     //    dropdown.css("left", "0x");
 }
 
-// Keeps JQuery from getting confused mid-animation
+g// Keeps JQuery from getting confused mid-animation
 function unlockAnimation() {
 	lessonBuilderAnimationLocked = false;
 }

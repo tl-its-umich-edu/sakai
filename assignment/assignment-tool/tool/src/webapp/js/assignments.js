@@ -570,8 +570,8 @@ ASN.disableControls = function( escape )
         var newSelect = document.createElement( "select" );
         newSelect.setAttribute( "id", select.getAttribute( "id" ) + "Disabled" );
         newSelect.setAttribute( "name", select.getAttribute( "name" ) + "Disabled" );
-        newSelect.setAttribute( "className", select.getAttribute( "className" ) );
         newSelect.setAttribute( "disabled", "true" );
+        newSelect.className = select.className;
         newSelect.innerHTML = select.innerHTML;
 
         // Add the clone to the DOM where the original was
@@ -791,4 +791,50 @@ ASN.disableLink = function( link )
 {
     link.className = "noPointers";
     link.disabled = true;
+};
+
+// SAK-29708
+ASN.checkEnableRemove = function()
+{
+    var selected = false;
+    var checkboxes = document.getElementsByName( "selectedAssignments" );
+    for( var i = 0; i < checkboxes.length; i++ )
+    {
+        if( checkboxes[i].checked )
+        {
+            selected = true;
+            break;
+        }
+    }
+
+    document.getElementById( "btnRemove" ).disabled = !selected;
+};
+
+ASN.doReorderAction = function( action )
+{
+    document.reorderForm.onsubmit();
+    document.getElementById( "option" ).value = action;
+
+    // Disable links
+    var undoLast = document.getElementById( "undo-last" );
+    var undoAll = document.getElementById( "undo-all" );
+    var sortByTitle = document.getElementById( "sortByTitle" );
+    var sortByOpenDate = document.getElementById( "sortByOpenDate" );
+    var sortByDueDate = document.getElementById( "sortByDueDate" );
+    var links = [undoLast, undoAll, sortByTitle, sortByOpenDate, sortByDueDate];
+    for( var i = 0; i < links.length; i++ )
+    {
+        if( links[i] !== null )
+        {
+            ASN.disableLink( links[i] );
+        }
+    }
+
+    // Disable controls and activate spinner
+    ASN.disableControls();
+    ASN.showSpinner( "reorderSpinner" );
+
+    // Submit the form
+    document.reorderForm.submit();
+    return false;
 };

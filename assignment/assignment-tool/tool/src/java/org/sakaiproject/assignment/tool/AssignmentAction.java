@@ -4171,7 +4171,7 @@ public class AssignmentAction extends PagedResourceActionII
 								u = UserDirectoryService.getUser(item.getAssessorUserId());
 								reviewersMap.put(item.getAssessorUserId(), u);
 							} catch (UserNotDefinedException e) {
-								M_log.warn(e.getMessage(), e);
+								M_log.error(e.getMessage(), e);
 							}
 						}
 					}
@@ -4221,6 +4221,7 @@ public class AssignmentAction extends PagedResourceActionII
 				context.put("showAllowResubmission", Boolean.TRUE);
 			}
 			// put the re-submission info into context
+			assignment_resubmission_option_into_state(assignment, null, state);
 			putTimePropertiesInContext(context, state, "Resubmit", ALLOW_RESUBMIT_CLOSEMONTH, ALLOW_RESUBMIT_CLOSEDAY, ALLOW_RESUBMIT_CLOSEYEAR, ALLOW_RESUBMIT_CLOSEHOUR, ALLOW_RESUBMIT_CLOSEMIN);
 			assignment_resubmission_option_into_context(context, state);
 		}
@@ -4546,7 +4547,7 @@ public class AssignmentAction extends PagedResourceActionII
 						User reviewer = UserDirectoryService.getUser(peerAssessmentItem.getAssessorUserId());
 						context.put("reviewer", reviewer);
 					} catch (UserNotDefinedException e) {
-						M_log.warn(e.getMessage(), e);
+						M_log.error(e.getMessage(), e);
 					}
 				}else{
 					context.put("view_only", false);
@@ -4859,10 +4860,10 @@ public class AssignmentAction extends PagedResourceActionII
 		List submissions = prepPage( state );
 		context.put("submissions", submissions);
 
+		List<SubmitterSubmission> allSubmissions = (List) state.getAttribute(STATE_PAGEING_TOTAL_ITEMS);
 		boolean hasAtLeastOneAnonAssigment = false;
-		for( Object obj : submissions )
+		for( SubmitterSubmission submission : allSubmissions )
 		{
-			SubmitterSubmission submission = (SubmitterSubmission) obj;
 			Assignment assignment = submission.getSubmission().getAssignment();
 			if( AssignmentService.getInstance().assignmentUsesAnonymousGrading( assignment ) )
 			{
@@ -6565,19 +6566,22 @@ public class AssignmentAction extends PagedResourceActionII
 						}
 
 						// SAK-17606
-						StringBuilder log = new StringBuilder();
-						log.append(new java.util.Date());
-						log.append(" ");
+						String logEntry = new java.util.Date().toString() + " ";
 						boolean anonymousGrading = Boolean.parseBoolean(a.getProperties().getProperty(NEW_ASSIGNMENT_CHECK_ANONYMOUS_GRADING));
 						if(!anonymousGrading){
-								log.append(u.getDisplayName());
-								log.append(" (");
-								log.append(u.getEid());
-								log.append(") ");
+							String subOrDraft = post ? "submitted" : "saved draft";
+							if( submitter != null && !submitter.getEid().equals( u.getEid() ) )
+							{
+								logEntry += submitter.getDisplayName() + " (" + submitter.getEid() + ") " + subOrDraft + " " +
+											rb.getString( "listsub.submitted.on.behalf" ) + " " + u.getDisplayName() + " (" +
+											u.getEid() + ")";
+							}
+							else
+							{
+								logEntry += u.getDisplayName() + " (" + u.getEid() + ") " + subOrDraft;
+							}
 						}
-						log.append(post ? "submitted" : "saved draft");
-						sEdit.addSubmissionLogEntry(log.toString());
-
+						sEdit.addSubmissionLogEntry( logEntry );
 						AssignmentService.commitEdit(sEdit);
 					}
 				}
@@ -6633,19 +6637,22 @@ public class AssignmentAction extends PagedResourceActionII
 							}
 
 							// SAK-17606
-							StringBuilder log = new StringBuilder();
-							log.append(new java.util.Date());
-							log.append(" ");
+							String logEntry = new java.util.Date().toString() + " ";
 							boolean anonymousGrading = Boolean.parseBoolean(a.getProperties().getProperty(NEW_ASSIGNMENT_CHECK_ANONYMOUS_GRADING));
 							if(!anonymousGrading){
-									log.append(u.getDisplayName());
-									log.append(" (");
-									log.append(u.getEid());
-									log.append(") ");
+								String subOrDraft = post ? "submitted" : "saved draft";
+								if( submitter != null && !submitter.getEid().equals( u.getEid() ) )
+								{
+									logEntry += submitter.getDisplayName() + " (" + submitter.getEid() + ") " + subOrDraft + " " +
+												rb.getString( "listsub.submitted.on.behalf" ) + " " + u.getDisplayName() + " (" +
+												u.getEid() + ")";
+								}
+								else
+								{
+									logEntry += u.getDisplayName() + " (" + u.getEid() + ") " + subOrDraft;
+								}
 							}
-							log.append(post ? "submitted" : "saved draft");
-							edit.addSubmissionLogEntry(log.toString());
-							
+							edit.addSubmissionLogEntry( logEntry );
 							AssignmentService.commitEdit(edit);
 						}
 					}
@@ -7551,7 +7558,7 @@ public class AssignmentAction extends PagedResourceActionII
 								}
 							}
 						} catch (IdUnusedException | PermissionException e) {
-							M_log.warn(e);
+							M_log.error(e);
 						}
 						
 						validPointGrade(state, gradePoints, scaleFactor);
@@ -11720,10 +11727,9 @@ public class AssignmentAction extends PagedResourceActionII
 							// the preview grade process might already scaled up the grade by "factor"
 							if (!((String) state.getAttribute(STATE_MODE)).equals(MODE_INSTRUCTOR_PREVIEW_GRADE_SUBMISSION))
 							{
-								validPointGrade(state, grade, factor);
-								
 								if (state.getAttribute(STATE_MESSAGE) == null)
 								{
+									validPointGrade(state, grade, factor);
 									int maxGrade = a.getContent().getMaxGradePoint();
 									try
 									{
@@ -14192,68 +14198,86 @@ public class AssignmentAction extends PagedResourceActionII
 			String search = (String) state.getAttribute(VIEW_SUBMISSION_SEARCH);
 			String aRef = (String) state.getAttribute(EXPORT_ASSIGNMENT_REF);
 			Boolean searchFilterOnly = (state.getAttribute(SUBMISSIONS_SEARCH_ONLY) != null && ((Boolean) state.getAttribute(SUBMISSIONS_SEARCH_ONLY)) ? Boolean.TRUE:Boolean.FALSE);
+			Assignment assignment = null;
 
 			
-			try {
-			    if (AssignmentService.getAssignment(aRef).isGroup()) {
-
-			        Collection<Group> submitterGroups = AssignmentService.getSubmitterGroupList("false", allOrOneGroup, "", aRef, contextString);
-
-			        // construct the group-submission list
-			        if (submitterGroups != null && !submitterGroups.isEmpty())
-			        {
-			            for (Iterator<Group> iSubmitterGroupsIterator = submitterGroups.iterator(); iSubmitterGroupsIterator.hasNext();)
-			            {
-			                Group gId = iSubmitterGroupsIterator.next();
-			                // Allow sections to be used for group assigments - https://jira.sakaiproject.org/browse/SAK-22425
-			                //if (gId.getProperties().get(GROUP_SECTION_PROPERTY) == null) {
-			                try
-			                {
-			                    AssignmentSubmission sub = AssignmentService.getSubmission(aRef, gId.getId());
-			                    returnResources.add(new SubmitterSubmission(gId, sub));  // UserSubmission accepts either User or Group
-			                }
-			                catch (IdUnusedException subIdException)
-			                {
-			                    M_log.warn(this + ".sizeResources: looking for submission for unused assignment id " + aRef + subIdException.getMessage());
-			                }
-			                catch (PermissionException subPerException)
-			                {
-			                    M_log.warn(this + ".sizeResources: cannot have permission to access submission of assignment " + aRef + " of group " + gId.getId());
-			                }
-			                //}
-			            }
-			        }
-
-			    } else {
-
-			        //List<String> submitterIds = AssignmentService.getSubmitterIdList(searchFilterOnly.toString(), allOrOneGroup, search, aRef, contextString);
-					Map<User, AssignmentSubmission> submitters = AssignmentService.getSubmitterMap(searchFilterOnly.toString(), allOrOneGroup, search, aRef, contextString);
-
-			        // construct the user-submission list
-					for (User u : submitters.keySet())
-					{
-						String uId = u.getId();
-
-						AssignmentSubmission sub = submitters.get(u);
-						SubmitterSubmission us = new SubmitterSubmission(u, sub);
-						String submittedById = (String)sub.getProperties().get(AssignmentSubmission.SUBMITTER_USER_ID);
-						if ( submittedById != null) {
-							try {
-								us.setSubmittedBy(UserDirectoryService.getUser(submittedById));
-							} catch (UserNotDefinedException ex1) {
-								M_log.warn(this + ":sizeResources cannot find submitter id=" + uId + ex1.getMessage());
-							}
-						}
-						returnResources.add(us);
-					}
-			    }
-
-			} catch (PermissionException aPerException) {
-			    M_log.warn(":getSubmitterGroupList: Not allowed to get assignment " + aRef + " " + aPerException.getMessage());
-			} catch (org.sakaiproject.exception.IdUnusedException e) {
-			    M_log.warn(this + ":sizeResources cannot find assignment " + e.getMessage() + "");
+			try
+			{
+				assignment = AssignmentService.getAssignment( aRef );
+				if( assignment.getProperties().getBooleanProperty( NEW_ASSIGNMENT_CHECK_ANONYMOUS_GRADING ) == true )
+				{
+					allOrOneGroup = "all";
+				}
+			}
+			catch( IdUnusedException ex )
+			{
+				M_log.warn( ":sizeResources cannot find assignment " + ex.getMessage() );
+			}
+			catch( PermissionException aPerException )
+			{
+				M_log.warn( ":sizeResources: Not allowed to get assignment " + aRef + " " + aPerException.getMessage() );
+			}
+			catch( EntityPropertyNotDefinedException ex )
+			{
+				M_log.warn( ":sizeResources: property not defined for assignment  " + aRef + " " + ex.getMessage() );
+			}
+			catch( EntityPropertyTypeException ex )
+			{
+				M_log.warn( ":sizeResources: property type exception for assignment  " + aRef + " " + ex.getMessage() );
 			}
 
+			if ( assignment != null && assignment.isGroup()) {
+
+				Collection<Group> submitterGroups = AssignmentService.getSubmitterGroupList("false", allOrOneGroup, "", aRef, contextString);
+
+				// construct the group-submission list
+				if (submitterGroups != null && !submitterGroups.isEmpty())
+				{
+					for (Iterator<Group> iSubmitterGroupsIterator = submitterGroups.iterator(); iSubmitterGroupsIterator.hasNext();)
+					{
+						Group gId = iSubmitterGroupsIterator.next();
+						// Allow sections to be used for group assigments - https://jira.sakaiproject.org/browse/SAK-22425
+						//if (gId.getProperties().get(GROUP_SECTION_PROPERTY) == null) {
+						try
+						{
+							AssignmentSubmission sub = AssignmentService.getSubmission(aRef, gId.getId());
+							returnResources.add(new SubmitterSubmission(gId, sub));  // UserSubmission accepts either User or Group
+						}
+						catch (IdUnusedException subIdException)
+						{
+							M_log.warn(this + ".sizeResources: looking for submission for unused assignment id " + aRef + subIdException.getMessage());
+						}
+						catch (PermissionException subPerException)
+						{
+							M_log.warn(this + ".sizeResources: cannot have permission to access submission of assignment " + aRef + " of group " + gId.getId());
+						}
+						//}
+					}
+				}
+
+			} else {
+
+				//List<String> submitterIds = AssignmentService.getSubmitterIdList(searchFilterOnly.toString(), allOrOneGroup, search, aRef, contextString);
+				Map<User, AssignmentSubmission> submitters = AssignmentService.getSubmitterMap(searchFilterOnly.toString(), allOrOneGroup, search, aRef, contextString);
+
+				// construct the user-submission list
+				for (User u : submitters.keySet())
+				{
+					String uId = u.getId();
+
+					AssignmentSubmission sub = submitters.get(u);
+					SubmitterSubmission us = new SubmitterSubmission(u, sub);
+					String submittedById = (String)sub.getProperties().get(AssignmentSubmission.SUBMITTER_USER_ID);
+					if ( submittedById != null) {
+						try {
+							us.setSubmittedBy(UserDirectoryService.getUser(submittedById));
+						} catch (UserNotDefinedException ex1) {
+							M_log.warn(this + ":sizeResources cannot find submitter id=" + uId + ex1.getMessage());
+						}
+					}
+					returnResources.add(us);
+				}
+			}
 		}
 
 		// sort them all
@@ -14592,7 +14616,17 @@ public class AssignmentAction extends PagedResourceActionII
 					try
 					{
 						Integer.parseInt(grade);
-						grade = grade.substring(0, grade.length() - dec) + decSeparator + grade.substring(grade.length() - dec);
+						int length = grade.length();
+						if (length > dec) {
+							grade = grade.substring(0, grade.length() - dec) + decSeparator + grade.substring(grade.length() - dec);
+						}
+						else {
+							String newGrade = "0".concat(decSeparator);
+							for (int i = length; i < dec; i++) {
+								newGrade = newGrade.concat("0");
+							}
+							grade = newGrade.concat(grade);
+						}
 					}
 					catch (NumberFormatException e)
 					{
@@ -15408,38 +15442,14 @@ public class AssignmentAction extends PagedResourceActionII
 	    }
 	    return retVal;
 	}
-
-	/**
-	 * 
-	 * @return
-	 */
-	public void doDownload_upload_all(RunData data)
-	{
-		SessionState state = ((JetspeedRunData) data).getPortletSessionState(((JetspeedRunData) data).getJs_peid());
-		ParameterParser params = data.getParameters();
-		String flow = params.getString("flow");
-		if ("upload".equals(flow))
-		{
-			// upload
-			doUpload_all(data);
-		}
-		else if ("download".equals(flow))
-		{
-			// upload
-			doDownload_all(data);
-		}
-		else if ("cancel".equals(flow))
-		{
-			// cancel
-			doCancel_download_upload_all(data);
-		}
-	}
 	
 	public void doDownload_all(RunData data)
 	{
 		SessionState state = ((JetspeedRunData) data).getPortletSessionState(((JetspeedRunData) data).getJs_peid());
-		
 		state.setAttribute(STATE_MODE, MODE_INSTRUCTOR_GRADE_ASSIGNMENT);
+		ParameterParser params = data.getParameters();
+		String downloadUrl = params.getString("downloadUrl");
+		state.setAttribute(STATE_DOWNLOAD_URL, downloadUrl);
 	}
 	
 	public void doUpload_all(RunData data)
@@ -16309,9 +16319,6 @@ public class AssignmentAction extends PagedResourceActionII
 	{
 		SessionState state = ((JetspeedRunData) data).getPortletSessionState(((JetspeedRunData) data).getJs_peid());
 		state.setAttribute(STATE_MODE, MODE_INSTRUCTOR_GRADE_ASSIGNMENT);
-		ParameterParser params = data.getParameters();
-		String downloadUrl = params.getString("downloadUrl");
-		state.setAttribute(STATE_DOWNLOAD_URL, downloadUrl);
 		cleanUploadAllContext(state);
 	}
 	

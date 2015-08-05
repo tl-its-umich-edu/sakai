@@ -67,9 +67,9 @@
     </license>
   </licenses>
   <scm>
-    <connection>scm:svn:https://source.sakaiproject.org/svn/master/trunk</connection>
-    <developerConnection>scm:svn:https://source.sakaiproject.org/svn/master/trunk</developerConnection>
-    <url>https://source.sakaiproject.org/svn/master/trunk</url>
+    <url>https://github.com/sakaiproject/sakai</url>
+    <connection>scm:git:git://github.com/sakaiproject/sakai.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/sakaiproject/sakai.git</developerConnection>
   </scm>
 
   <properties>
@@ -113,17 +113,19 @@
     <sakai.spring.security.version>3.2.7.RELEASE</sakai.spring.security.version>
     <sakai.spring.test.artifactId>spring-test</sakai.spring.test.artifactId>
     <sakai.spring.test.version>3.2.13.RELEASE</sakai.spring.test.version>
+    <sakai.tika.version>1.9</sakai.tika.version>
     <sakai.tomcat.version>8.0.20</sakai.tomcat.version>
     <sakai.velocity.version>1.6.4</sakai.velocity.version>
     <sakai.xerces.impl.version>2.6.2</sakai.xerces.impl.version>
     <sakai.xerces.api.version>2.6.2</sakai.xerces.api.version>
     <sakai.log4j.version>1.2.17</sakai.log4j.version>
     <sakai.slf4j.version>1.7.5</sakai.slf4j.version>
+    <sakai.poi.version>3.12</sakai.poi.version>
     <rsfutil.version>0.8.1-SNAPSHOT</rsfutil.version>
     <sakairsf.components.version>11-SNAPSHOT</sakairsf.components.version>
     <sakairsf.version>11-SNAPSHOT</sakairsf.version>
     <generic-dao.version>0.9.18</generic-dao.version>
-    <joda.time.version>2.8</joda.time.version>
+    <joda.time.version>2.8.1</joda.time.version>
     <reflectutils.version>0.9.20</reflectutils.version>
     <!-- Sakai modules that are versioned separately -->
     <!-- lessonbuilder tool pom depends on msgcntr ver prop. Need to add a profile to the LB tool pom to mark change between 10.x master and earlier versions -->
@@ -1144,6 +1146,12 @@
       <dependency>
         <groupId>org.sakaiproject.contentreview</groupId>
         <artifactId>contentreview-service-api</artifactId>
+        <version>${sakai.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.sakaiproject.dash</groupId>
+        <artifactId>dashboard-api</artifactId>
         <version>${sakai.version}</version>
         <scope>provided</scope>
       </dependency>
